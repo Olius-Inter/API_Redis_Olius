@@ -1,0 +1,31 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+
+  api:
+    build: .
+    ports:
+      - "8081:8081"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Demo data only; with OLIUS_DATABASE_URL the scheduled rebuild loads the real ranking.
+      OLIUS_SEED: ${OLIUS_SEED:-false}
+      OLIUS_SERVICE_TOKEN: ${OLIUS_SERVICE_TOKEN:-}
+      OLIUS_DATABASE_URL: ${OLIUS_DATABASE_URL:-}
+      OLIUS_DATABASE_USER: ${OLIUS_DATABASE_USER:-}
+      OLIUS_DATABASE_PASSWORD: ${OLIUS_DATABASE_PASSWORD:-}
+      OLIUS_REBUILD_INTERVAL: ${OLIUS_REBUILD_INTERVAL:-5m}
+      # Core URL as seen from inside the container (e.g. http://host.docker.internal:8080).
+      OLIUS_CORE_BASE_URL: ${OLIUS_CORE_BASE_URL:-}
+      OLIUS_API_DOCS_ENABLED: ${OLIUS_API_DOCS_ENABLED:-false}
+    depends_on:
+      - redis
+
+volumes:
+  redis-data:
