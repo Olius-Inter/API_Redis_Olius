@@ -104,23 +104,3 @@ Se o Postgres falhar, nada no Redis muda. Roda sozinho a cada `OLIUS_REBUILD_INT
 | `model` | `RankingCategory`, `AnnualScore`, `RankedParticipant`, `UserSession` |
 | `exception` | `GlobalExceptionHandler` (Problem Details) |
 | `config` | Propriedades, CORS, token de serviço, rebuild agendado, relógio e OpenAPI |
-
-## Publicação
-
-A imagem do `Dockerfile` roda sem root, usa a variável `PORT` da hospedagem e
-responde em `GET /health`. Variáveis de produção:
-
-| Variável | Valor em produção |
-|---|---|
-| `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Dados TCP do Upstash |
-| `REDIS_SSL` | `true` |
-| `OLIUS_DATABASE_URL` | `jdbc:postgresql://<host>:<porta>/<banco>?sslmode=require` |
-| `OLIUS_DATABASE_USER`, `OLIUS_DATABASE_PASSWORD` | Conta criada pelo time de banco |
-| `OLIUS_REBUILD_INTERVAL` | `5m` (ou o intervalo combinado) |
-| `OLIUS_CORE_BASE_URL` | URL HTTPS pública da Core |
-| `OLIUS_SERVICE_TOKEN` | Segredo longo (`openssl rand -hex 32`) |
-| `OLIUS_SEED` | `false` |
-| `OLIUS_API_DOCS_ENABLED` | `false` (Swagger privado; é o padrão) |
-| `OLIUS_ALLOWED_ORIGINS` | Vazio para o app Android |
-
-Ao subir, a API faz o primeiro rebuild em segundos. Até lá, `GET /api/ranking` responde 503.
