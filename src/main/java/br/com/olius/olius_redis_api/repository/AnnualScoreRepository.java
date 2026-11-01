@@ -53,8 +53,12 @@ public class AnnualScoreRepository {
         if (!configured()) {
             throw new DatabaseUnavailableException("Set OLIUS_DATABASE_URL to enable the rebuild.");
         }
-        try (Connection conn = DriverManager.getConnection(
-                properties.databaseUrl(), properties.databaseUser(), properties.databasePassword())) {
+        java.util.Properties connectionProperties = new java.util.Properties();
+        connectionProperties.setProperty("user", properties.databaseUser() == null ? "" : properties.databaseUser());
+        connectionProperties.setProperty("password", properties.databasePassword() == null ? "" : properties.databasePassword());
+        connectionProperties.setProperty("connectTimeout", "5");
+        connectionProperties.setProperty("socketTimeout", "40");
+        try (Connection conn = DriverManager.getConnection(properties.databaseUrl(), connectionProperties)) {
             conn.setReadOnly(true);
             try (PreparedStatement st = conn.prepareStatement(SQL)) {
                 st.setQueryTimeout(TIMEOUT_SECONDS);

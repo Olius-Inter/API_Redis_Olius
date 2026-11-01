@@ -48,14 +48,14 @@ class RebuildServiceTest {
         when(redis.lock(anyString(), any())).thenReturn(false);
         assertThrows(RebuildInProgressException.class, service::rebuild);
         verify(database, never()).findAll();
-        verify(redis, never()).publish(anyInt(), anyMap(), anyString());
+        verify(redis, never()).publish(anyString(), anyInt(), anyMap(), anyString());
     }
 
     @Test
     void databaseFailureKeepsThePreviousRankingAndReleasesTheLock() {
         when(database.findAll()).thenThrow(new DatabaseUnavailableException("down"));
         assertThrows(DatabaseUnavailableException.class, service::rebuild);
-        verify(redis, never()).publish(anyInt(), anyMap(), anyString());
+        verify(redis, never()).publish(anyString(), anyInt(), anyMap(), anyString());
         verify(redis).unlock(anyString());
     }
 
@@ -71,7 +71,7 @@ class RebuildServiceTest {
         var response = service.rebuild();
 
         ArgumentCaptor<Map<RankingCategory, List<RankedParticipant>>> captor = ArgumentCaptor.forClass(Map.class);
-        verify(redis).publish(eq(2026), captor.capture(), eq("2026-10-24T10:00:00-03:00"));
+        verify(redis).publish(anyString(), eq(2026), captor.capture(), eq("2026-10-24T10:00:00-03:00"));
         List<RankedParticipant> establishments = captor.getValue().get(RankingCategory.ESTABLISHMENT);
         assertEquals(List.of("e1", "e2", "e3"), establishments.stream().map(RankedParticipant::id).toList());
         assertEquals(List.of(1, 1, 2), establishments.stream().map(RankedParticipant::position).toList());
@@ -87,7 +87,7 @@ class RebuildServiceTest {
         when(database.findAll()).thenReturn(List.of());
         service.rebuild();
         ArgumentCaptor<Map<RankingCategory, List<RankedParticipant>>> captor = ArgumentCaptor.forClass(Map.class);
-        verify(redis).publish(eq(2026), captor.capture(), anyString());
+        verify(redis).publish(anyString(), eq(2026), captor.capture(), anyString());
         assertEquals(List.of(), captor.getValue().get(RankingCategory.ESTABLISHMENT));
         assertEquals(List.of(), captor.getValue().get(RankingCategory.CITIZEN));
     }
@@ -98,6 +98,6 @@ class RebuildServiceTest {
                 new AnnualScore(RankingCategory.CITIZEN, 2026, "c1", 10, "A", null),
                 new AnnualScore(RankingCategory.CITIZEN, 2025, "c2", 10, "B", null)));
         assertThrows(IllegalStateException.class, service::rebuild);
-        verify(redis, never()).publish(anyInt(), anyMap(), anyString());
+        verify(redis, never()).publish(anyString(), anyInt(), anyMap(), anyString());
     }
 }

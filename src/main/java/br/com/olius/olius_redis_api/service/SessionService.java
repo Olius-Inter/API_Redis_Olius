@@ -39,12 +39,15 @@ public class SessionService {
         this.client = RestClient.builder().requestFactory(factory).build();
     }
 
-    /** Returns null without an Authorization header: the ranking stays public, only without myPosition. */
+    /** Every ranking read requires a current session validated by the Core. */
     public UserSession identify(String authorization) {
         if (authorization == null || authorization.isBlank()) {
-            return null;
+            throw new InvalidSessionException();
         }
         if (!authorization.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            throw new InvalidSessionException();
+        }
+        if (authorization.substring(7).isBlank()) {
             throw new InvalidSessionException();
         }
         String baseUrl = properties.coreBaseUrl();
@@ -71,7 +74,15 @@ public class SessionService {
 
     /** Reads only userId and userType, so new Core fields do not break parsing. */
     static UserSession parseSession(ObjectMapper objectMapper, String body) {
-        JsonNode json = objectMapper.readTree(body == null ? "" : body);
+        JsonNode json;
+        try {
+            json = objectMapper.readTree(body == null ? "" : body);
+        } catch (tools.jackson.core.JacksonException e) {
+            throw new CoreUnavailableException("Core session response is not valid JSON.");
+        }
+        if (json == null || !json.isObject()) {
+            throw new CoreUnavailableException("Core session response is not an object.");
+        }
         String userId = json.path("userId").asString(null);
         if (userId == null || userId.isBlank()) {
             throw new CoreUnavailableException("Core session response without userId.");

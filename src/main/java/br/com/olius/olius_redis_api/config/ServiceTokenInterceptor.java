@@ -10,7 +10,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
  * Protects write routes under /api/**: they require {@code X-Service-Token}
- * equal to OLIUS_SERVICE_TOKEN. Reads stay public. Without a configured
+ * equal to OLIUS_SERVICE_TOKEN. Ranking reads validate the Core session separately. Without a configured
  * token every write is rejected (fail closed).
  */
 public class ServiceTokenInterceptor implements HandlerInterceptor {

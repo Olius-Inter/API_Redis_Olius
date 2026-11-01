@@ -1,0 +1,9 @@
+.git
+.idea
+target
+.env
+.env.*
+!.env.example
+secrets
+*.pem
+*.key

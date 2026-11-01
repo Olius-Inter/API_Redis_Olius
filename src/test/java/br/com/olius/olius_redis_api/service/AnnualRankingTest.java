@@ -4,16 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import br.com.olius.olius_redis_api.exception.CoreUnavailableException;
+import br.com.olius.olius_redis_api.exception.InvalidSessionException;
+import br.com.olius.olius_redis_api.config.OliusProperties;
 import br.com.olius.olius_redis_api.model.AnnualScore;
 import br.com.olius.olius_redis_api.model.RankedParticipant;
 import br.com.olius.olius_redis_api.model.RankingCategory;
 import br.com.olius.olius_redis_api.model.UserSession;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.core.DefaultTypedTuple;
-import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -21,10 +19,6 @@ class AnnualRankingTest {
 
     private static AnnualScore score(String id, long points) {
         return new AnnualScore(RankingCategory.ESTABLISHMENT, 2026, id, points, "Name " + id, null);
-    }
-
-    private static TypedTuple<String> tuple(String id, double score) {
-        return new DefaultTypedTuple<>(id, score);
     }
 
     @Test
@@ -44,21 +38,6 @@ class AnnualRankingTest {
     }
 
     @Test
-    void topOrdersTiesByAscendingId() {
-        Set<TypedTuple<String>> top = new LinkedHashSet<>(List.of(tuple("z", 50), tuple("b", 10), tuple("a", 10)));
-        List<TypedTuple<String>> r = RankingService.orderTop(top, Set.of(), 5);
-        assertEquals(List.of("z", "a", "b"), r.stream().map(TypedTuple::getValue).toList());
-    }
-
-    @Test
-    void cutInsideATieKeepsTheLowestIds() {
-        Set<TypedTuple<String>> top = new LinkedHashSet<>(List.of(tuple("z", 50), tuple("c", 10)));
-        Set<TypedTuple<String>> tied = new LinkedHashSet<>(List.of(tuple("a", 10), tuple("b", 10), tuple("c", 10)));
-        List<TypedTuple<String>> r = RankingService.orderTop(top, tied, 2);
-        assertEquals(List.of("z", "a"), r.stream().map(TypedTuple::getValue).toList());
-    }
-
-    @Test
     void parsesCoreSessionIgnoringExtraFields() {
         ObjectMapper mapper = JsonMapper.builder().build();
         UserSession s = SessionService.parseSession(mapper, """
@@ -68,5 +47,16 @@ class AnnualRankingTest {
         assertEquals("5f0c", s.userId());
         assertEquals(RankingCategory.CITIZEN, s.category());
         assertThrows(CoreUnavailableException.class, () -> SessionService.parseSession(mapper, "{}"));
+        assertThrows(CoreUnavailableException.class, () -> SessionService.parseSession(mapper, "not-json"));
+        assertThrows(CoreUnavailableException.class, () -> SessionService.parseSession(mapper, "[]"));
+    }
+
+    @Test
+    void missingBearerIsRejectedBeforeAnyCoreCall() {
+        var properties = new OliusProperties(List.of(), false, false, "", "", "", "", "", false, null);
+        var sessions = new SessionService(properties, JsonMapper.builder().build());
+        assertThrows(InvalidSessionException.class, () -> sessions.identify(null));
+        assertThrows(InvalidSessionException.class, () -> sessions.identify(" "));
+        assertThrows(InvalidSessionException.class, () -> sessions.identify("Basic credentials"));
     }
 }

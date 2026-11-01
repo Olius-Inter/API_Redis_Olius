@@ -38,13 +38,14 @@ public class RankingController {
         this.sessionService = sessionService;
     }
 
-    /** Top N of the current year; with a Core Bearer token it also returns the caller position. */
+    /** Top N and caller position, authenticated by the Core. */
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @GetMapping("/ranking")
     @Operation(summary = "Annual ranking by category, with the authenticated user position")
     public RankingResponse ranking(
             @RequestParam(defaultValue = "establishment") RankingCategory category,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int limit,
-            @Parameter(description = "Bearer <Core access token>; optional")
+            @Parameter(hidden = true)
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         return rankingService.build(category, limit, sessionService.identify(authorization));
     }

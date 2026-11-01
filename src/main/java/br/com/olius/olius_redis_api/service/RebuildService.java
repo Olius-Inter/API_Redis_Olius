@@ -21,13 +21,13 @@ import org.springframework.stereotype.Service;
 
 /**
  * Rebuilds the Redis ranking from {@code vw_annual_scores}. PostgreSQL is the
- * source of truth: everything is read before Redis is touched, and a failure
- * leaves the previous ranking visible.
+ * source of truth: the source is read before staging a new generation.
+ * Failed reads leave the previously published generation unchanged.
  */
 @Service
 public class RebuildService {
 
-    /** Only prevents a stuck lock if the API dies mid-rebuild. */
+    /** Publication is fenced by this lease; a worker that loses it cannot publish. */
     private static final Duration LOCK_TTL = Duration.ofMinutes(5);
 
     private final AnnualScoreRepository scoreRepository;
@@ -52,7 +52,23 @@ public class RebuildService {
             throw new RebuildInProgressException();
         }
         try {
-            return publish(scoreRepository.findAll());
+            return publish(owner, scoreRepository.findAll());
+        } finally {
+            rankingRepository.unlock(owner);
+        }
+    }
+
+    public RebuildResponse publishDemo(List<AnnualScore> scores, Runnable cleanup) {
+        if (databaseConfigured()) {
+            throw new IllegalStateException("Demo mode cannot be combined with PostgreSQL.");
+        }
+        String owner = UUID.randomUUID().toString();
+        if (!rankingRepository.lock(owner, LOCK_TTL)) {
+            throw new RebuildInProgressException();
+        }
+        try {
+            cleanup.run();
+            return publish(owner, scores);
         } finally {
             rankingRepository.unlock(owner);
         }
@@ -62,7 +78,7 @@ public class RebuildService {
      * Publishes a complete set of scores (also used by the demo seed). The
      * view only returns the current year; with no rows, today's year is used.
      */
-    public RebuildResponse publish(List<AnnualScore> scores) {
+    private RebuildResponse publish(String owner, List<AnnualScore> scores) {
         int year = scores.isEmpty() ? LocalDate.now(clock).getYear() : scores.get(0).year();
         Map<RankingCategory, List<AnnualScore>> byCategory = new EnumMap<>(RankingCategory.class);
         for (RankingCategory category : RankingCategory.values()) {
@@ -80,7 +96,7 @@ public class RebuildService {
         byCategory.forEach((category, list) -> ranked.put(category, RankingService.rank(list)));
 
         String updatedAt = OffsetDateTime.now(clock).withNano(0).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-        rankingRepository.publish(year, ranked, updatedAt);
+        rankingRepository.publish(owner, year, ranked, updatedAt);
         return new RebuildResponse(year, updatedAt,
                 ranked.get(RankingCategory.ESTABLISHMENT).size(), ranked.get(RankingCategory.CITIZEN).size());
     }

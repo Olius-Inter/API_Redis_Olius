@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Loads DEMO ranking data when OLIUS_SEED=true (never in production). With
- * OLIUS_DATABASE_URL set, the scheduled rebuild replaces it with real data.
+ * OLIUS_DATABASE_URL set, startup is rejected to keep demo and real data separate.
  */
 @Component
 public class SeedRunner implements ApplicationRunner {
@@ -44,7 +44,7 @@ public class SeedRunner implements ApplicationRunner {
 
     /** Also removes keys left by previous versions of this API. */
     private static final List<String> PATTERNS = List.of(
-            "ranking:*", "profile:*", "perfil:*", "conquistas:*", "conquista:*", "coletas:*", "niveis:*");
+            "{olius-ranking}:*", "ranking:*", "profile:*", "perfil:*", "conquistas:*", "conquista:*", "coletas:*", "niveis:*");
 
     private final OliusProperties properties;
     private final RebuildService rebuildService;
@@ -64,13 +64,12 @@ public class SeedRunner implements ApplicationRunner {
         if (!properties.seed()) {
             return;
         }
+        if (rebuildService.databaseConfigured()) {
+            throw new IllegalStateException("OLIUS_SEED cannot be enabled with OLIUS_DATABASE_URL.");
+        }
         if (!rankingRepository.ping()) {
             LOG.error("Seed skipped: Redis is unreachable. Check the REDIS_* variables.");
             return;
-        }
-        if (properties.seedClear()) {
-            int removed = PATTERNS.stream().mapToInt(rankingRepository::deleteByPattern).sum();
-            LOG.info("Seed: {} keys removed.", removed);
         }
 
         int year = LocalDate.now(clock).getYear();
@@ -79,7 +78,12 @@ public class SeedRunner implements ApplicationRunner {
                 new AnnualScore(RankingCategory.ESTABLISHMENT, year, r.id(), r.points(), r.name(), r.city())));
         CITIZENS.forEach(r -> scores.add(
                 new AnnualScore(RankingCategory.CITIZEN, year, r.id(), r.points(), r.name(), null)));
-        rebuildService.publish(scores);
+        rebuildService.publishDemo(scores, () -> {
+            if (properties.seedClear()) {
+                int removed = PATTERNS.stream().mapToInt(rankingRepository::deleteByPattern).sum();
+                LOG.info("Seed: {} keys removed.", removed);
+            }
+        });
         LOG.info("Demo seed loaded. Try GET /api/ranking?category=establishment");
     }
 }
