@@ -26,6 +26,12 @@ public record OliusProperties(
         Duration rebuildInterval) {
 
     public OliusProperties {
+        if (seed && databaseUrl != null && !databaseUrl.isBlank()) {
+            throw new IllegalArgumentException("OLIUS_SEED and OLIUS_DATABASE_URL cannot be enabled together.");
+        }
+        if (seedClear && !seed) {
+            throw new IllegalArgumentException("OLIUS_SEED_CLEAR requires OLIUS_SEED=true.");
+        }
         allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
         if (rebuildInterval == null || rebuildInterval.isNegative() || rebuildInterval.isZero()) {
             rebuildInterval = Duration.ofMinutes(5);
