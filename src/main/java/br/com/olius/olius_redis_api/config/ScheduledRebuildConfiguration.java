@@ -47,7 +47,7 @@ public class ScheduledRebuildConfiguration implements SchedulingConfigurer {
         } catch (RebuildInProgressException e) {
             LOG.info("Scheduled rebuild skipped: another rebuild is running.");
         } catch (RuntimeException e) {
-            LOG.error("Scheduled rebuild failed; previous ranking kept: {}", e.getMessage());
+            LOG.error("Scheduled rebuild failed; previous ranking kept", e);
         }
     }
 }
